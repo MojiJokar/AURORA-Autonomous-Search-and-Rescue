@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment secrets
+.env
+.env.*
+
+# Data and model files
+datasets/*
+!datasets/README.md
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# Build artifacts
+build/
+dist/
