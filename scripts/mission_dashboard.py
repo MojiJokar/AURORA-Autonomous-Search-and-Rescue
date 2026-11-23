@@ -1,37 +1,128 @@
-"""Serve the AURORA mission dashboard on the local computer."""
+"""Serve the AURORA mission dashboard with HTTP video range support."""
 
 import argparse
 import json
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CHUNK_SIZE = 256 * 1024
 
 
 def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
     dashboard_path = PROJECT_ROOT / "dashboard" / "index.html"
 
     class DashboardHandler(BaseHTTPRequestHandler):
-        def send_bytes(self, content, content_type, status=200):
+
+        def send_bytes(self, content, content_type, status=200, head_only=False):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            self.wfile.write(content)
 
-        def do_GET(self):
+            if not head_only:
+                self.wfile.write(content)
+
+        def serve_video(self, head_only=False):
+            if not video_path.is_file():
+                self.send_error(404, "Annotated video not found")
+                return
+
+            file_size = video_path.stat().st_size
+            if file_size == 0:
+                self.send_error(404, "Annotated video is empty")
+                return
+
+            range_header = self.headers.get("Range")
+            start = 0
+            end = file_size - 1
+            status = 200
+
+            if range_header:
+                match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+
+                if not match or (not match.group(1) and not match.group(2)):
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{file_size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+
+                first, last = match.groups()
+
+                if first:
+                    start = int(first)
+                    end = int(last) if last else file_size - 1
+                else:
+                    suffix_length = int(last)
+                    if suffix_length <= 0:
+                        self.send_response(416)
+                        self.send_header("Content-Range", f"bytes */{file_size}")
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
+                    start = max(0, file_size - suffix_length)
+
+                if start >= file_size or end < start:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{file_size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+
+                end = min(end, file_size - 1)
+                status = 206
+
+            content_length = end - start + 1
+
+            self.send_response(status)
+            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(content_length))
+            self.send_header("Cache-Control", "no-store")
+
+            if status == 206:
+                self.send_header(
+                    "Content-Range",
+                    f"bytes {start}-{end}/{file_size}",
+                )
+
+            self.end_headers()
+
+            if head_only:
+                return
+
+            try:
+                with video_path.open("rb") as video_file:
+                    video_file.seek(start)
+                    remaining = content_length
+
+                    while remaining > 0:
+                        chunk = video_file.read(min(CHUNK_SIZE, remaining))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def handle_request(self, head_only=False):
             route = urlparse(self.path).path
 
             if route == "/":
                 if not dashboard_path.is_file():
                     self.send_error(404, "Dashboard HTML file not found")
                     return
+
                 self.send_bytes(
                     dashboard_path.read_bytes(),
                     "text/html; charset=utf-8",
+                    head_only=head_only,
                 )
                 return
 
@@ -41,10 +132,12 @@ def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
                         "error": "Mission report not found",
                         "expected_path": str(report_path),
                     }).encode("utf-8")
+
                     self.send_bytes(
                         content,
                         "application/json",
                         status=404,
+                        head_only=head_only,
                     )
                     return
 
@@ -55,7 +148,11 @@ def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
                     self.send_error(500, "Mission report is not valid JSON")
                     return
 
-                self.send_bytes(content, "application/json")
+                self.send_bytes(
+                    content,
+                    "application/json",
+                    head_only=head_only,
+                )
                 return
 
             if route == "/api/telemetry":
@@ -64,7 +161,12 @@ def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
                         "available": False,
                         "message": "No telemetry snapshot is available",
                     }).encode("utf-8")
-                    self.send_bytes(content, "application/json")
+
+                    self.send_bytes(
+                        content,
+                        "application/json",
+                        head_only=head_only,
+                    )
                     return
 
                 try:
@@ -74,17 +176,24 @@ def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
                     self.send_error(500, "Telemetry snapshot is not valid JSON")
                     return
 
-                self.send_bytes(content, "application/json")
+                self.send_bytes(
+                    content,
+                    "application/json",
+                    head_only=head_only,
+                )
                 return
 
             if route == "/video":
-                if not video_path.is_file():
-                    self.send_error(404, "Annotated video not found")
-                    return
-                self.send_bytes(video_path.read_bytes(), "video/mp4")
+                self.serve_video(head_only=head_only)
                 return
 
             self.send_error(404, "Not found")
+
+        def do_GET(self):
+            self.handle_request(head_only=False)
+
+        def do_HEAD(self):
+            self.handle_request(head_only=True)
 
         def log_message(self, format_string, *args):
             print("Dashboard:", format_string % args)
@@ -130,6 +239,7 @@ def main():
     print("AURORA Mission Dashboard")
     print("------------------------")
     print(f"Open in your browser: http://{args.host}:{args.port}")
+    print("Video byte-range support: enabled")
     print("Press Ctrl+C in this terminal to stop the dashboard.")
 
     try:
