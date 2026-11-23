@@ -125,3 +125,30 @@ people cross, overlap, or move substantially between frames.
 
 This milestone does not implement autonomous flight,
 obstacle avoidance, or search-and-rescue mission execution.
+
+## Milestone 9 — Search-and-Rescue Target Assessment
+
+AURORA now includes a lightweight target-assessment module for ranking
+tracked person detections for operator attention.
+
+The assessment considers:
+- Person classification.
+- Detection confidence.
+- Track persistence across frames.
+- Relative bounding-box visibility.
+- Whether the track is currently observed.
+
+Each assessment includes:
+- Track ID.
+- Candidate status.
+- LOW, MEDIUM, or HIGH visual priority.
+- A numerical score between 0 and 1.
+- Individual assessment factors.
+- Human-readable explanations.
+
+The assessment is an operator-support feature. It does not determine
+whether a person is injured, unconscious, or in need of rescue.
+
+The current scoring system is a simple baseline and requires validation
+with representative search-and-rescue footage before operational use.
+
