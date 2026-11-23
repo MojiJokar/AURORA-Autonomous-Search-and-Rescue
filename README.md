@@ -241,3 +241,14 @@ latest telemetry snapshot file. A LIVE status indicates recently updated
 MAVLink data; it does not prove that the aircraft is airborne or that the
 flight controller is safe to operate. Real flight and SITL telemetry
 verification remain separate validation tasks.
+
+
+## Milestone 15 — Autonomous Search-Grid Generation
+
+AURORA generates rectangular lawnmower-style search routes from GPS boundaries, with configurable lane spacing, altitude and speed. It exports JSON and GeoJSON and displays the search boundary, route and waypoints on the mission map at `/api/search-grid`.
+
+Example: `PYTHONPATH=src python scripts/plan_search_grid.py --south-lat 49.8723 --west-lon 8.6507 --north-lat 49.8733 --east-lon 8.6520 --spacing 20 --altitude 30 --speed 3`
+
+Generated files: `datasets/search_grid.json` and `datasets/search_grid.geojson`.
+
+**Safety:** The route status is `PLANNED_NOT_EXECUTED`. This is a simulation-first planning feature, not a certified flight plan. It does not arm or control a UAV. Review airspace, terrain, obstacles, weather and vehicle limits independently before any real flight.

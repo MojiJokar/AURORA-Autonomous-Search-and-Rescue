@@ -91,8 +91,56 @@ async function loadTargets() {
     status.textContent = error.message;
   }
 }
+async function loadSearchGrid() {
+  try {
+    const response = await fetch("/api/search-grid", {cache:"no-store"});
+    if (!response.ok) return;
+
+    const data = await response.json();
+
+    if (window.searchGridLayer) {
+      map.removeLayer(window.searchGridLayer);
+    }
+
+    window.searchGridLayer = L.geoJSON(data, {
+      style: feature => {
+        const role = feature.properties?.role;
+        if (role === "SEARCH_AREA") {
+          return {color:"#7c3aed", weight:2, fillOpacity:0.08};
+        }
+        if (role === "SEARCH_ROUTE") {
+          return {color:"#0891b2", weight:4, opacity:0.9};
+        }
+        return {};
+      },
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+        radius:5,
+        color:"#0891b2",
+        fillColor:"#06b6d4",
+        fillOpacity:1
+      }),
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        if (p.role === "WAYPOINT") {
+          layer.bindPopup(
+            "Search waypoint " + p.sequence +
+            "<br>Lane: " + p.lane +
+            "<br>Altitude: " + p.altitude_m + " m"
+          );
+        } else if (p.label) {
+          layer.bindPopup(p.label);
+        }
+      }
+    }).addTo(map);
+  } catch (error) {
+    console.warn("Search grid unavailable:", error);
+  }
+}
+
 loadTargets();
+loadSearchGrid();
 setInterval(loadTargets, 5000);
+setInterval(loadSearchGrid, 10000);
 </script>
 </body>
 </html>

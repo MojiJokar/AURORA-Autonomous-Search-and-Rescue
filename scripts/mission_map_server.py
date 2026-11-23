@@ -26,6 +26,9 @@ def main():
             elif self.path == "/api/targets":
                 file_path = geojson_path
                 content_type = "application/geo+json"
+            elif self.path == "/api/search-grid":
+                file_path = ROOT / "datasets" / "search_grid.geojson"
+                content_type = "application/geo+json"
             else:
                 self.send_error(404)
                 return
