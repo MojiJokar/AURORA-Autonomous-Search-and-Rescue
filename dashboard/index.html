@@ -65,6 +65,22 @@ footer { color:#8190a5; font-size:12px; margin-top:22px; }
 </div>
 
 <section style="margin-top:16px">
+  <h2>UAV Telemetry</h2>
+  <div class="sub">Latest recorded snapshot — read-only</div>
+  <div class="grid">
+    <div class="card"><div class="label">LATITUDE</div><div class="value" id="latitude">—</div></div>
+    <div class="card"><div class="label">LONGITUDE</div><div class="value" id="longitude">—</div></div>
+    <div class="card"><div class="label">RELATIVE ALTITUDE (m)</div><div class="value" id="altitude">—</div></div>
+    <div class="card"><div class="label">GROUND SPEED (m/s)</div><div class="value" id="speed">—</div></div>
+    <div class="card"><div class="label">HEADING (degrees)</div><div class="value" id="heading">—</div></div>
+    <div class="card"><div class="label">GPS FIX</div><div class="value" id="gps">—</div></div>
+    <div class="card"><div class="label">FLIGHT MODE</div><div class="value" id="flightMode">—</div></div>
+    <div class="card"><div class="label">ARMED</div><div class="value" id="armed">—</div></div>
+  </div>
+  <div class="sub" id="telemetryStatus">Waiting for telemetry...</div>
+</section>
+
+<section style="margin-top:16px">
   <h2>Tracked Person Candidates</h2>
   <div class="sub">Priority is a visual attention score, not a medical or rescue diagnosis.</div>
   <div style="overflow-x:auto">
@@ -95,6 +111,31 @@ async function refresh() {
     const response = await fetch("/api/report", {cache:"no-store"});
     if (!response.ok) throw new Error("Mission report not found. Run the perception pipeline first.");
     const data = await response.json();
+    const telemetryResponse = await fetch("/api/telemetry", {cache:"no-store"});
+    if (telemetryResponse.ok) {
+      const telemetry = await telemetryResponse.json();
+      if (telemetry.available === false) {
+        document.getElementById("telemetryStatus").textContent =
+          "No telemetry snapshot available.";
+      } else {
+        const setValue = (id, value) => {
+          document.getElementById(id).textContent =
+            value === null || value === undefined ? "—" : value;
+        };
+        setValue("latitude", Number(telemetry.latitude).toFixed(6));
+        setValue("longitude", Number(telemetry.longitude).toFixed(6));
+        setValue("altitude", telemetry.relative_altitude_m);
+        setValue("speed", telemetry.ground_speed_m_s);
+        setValue("heading", telemetry.heading_deg);
+        setValue("gps", telemetry.gps_fix_type);
+        setValue("flightMode", telemetry.flight_mode);
+        setValue("armed", telemetry.armed);
+        document.getElementById("telemetryStatus").textContent =
+          "Source: " + safe(telemetry.source) +
+          " | Timestamp: " + safe(telemetry.timestamp);
+      }
+    }
+
     document.getElementById("connection").textContent = "REPORT LOADED";
     document.getElementById("frames").textContent = data.frames_processed;
     document.getElementById("detections").textContent = data.person_detections;

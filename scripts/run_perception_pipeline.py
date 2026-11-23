@@ -28,6 +28,11 @@ def parse_args():
     )
     parser.add_argument("--video", required=True, help="Input video")
     parser.add_argument(
+        "--telemetry-log",
+        default=None,
+        help="Optional JSONL telemetry log to include in the mission report",
+    )
+    parser.add_argument(
         "--output",
         default="datasets/aurora_pipeline_output.mp4",
         help="Annotated output video",
@@ -193,6 +198,12 @@ def main():
     )
     if report_path.resolve() == video_path.resolve():
         raise ValueError("Report path must not overwrite the input video")
+    if args.telemetry_log:
+        telemetry_count = report_builder.load_telemetry_log(
+            args.telemetry_log
+        )
+        print(f"Telemetry samples imported: {telemetry_count}")
+
     report_builder.save(report_path)
     print(f"Output video: {output_path}")
     print(f"Mission report: {report_path}")

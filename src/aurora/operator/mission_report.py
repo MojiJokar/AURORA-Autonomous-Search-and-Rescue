@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from aurora.telemetry.models import TelemetrySnapshot
+
 
 class MissionReportBuilder:
     """Collect mission statistics and per-track summaries."""
@@ -24,6 +26,7 @@ class MissionReportBuilder:
             "LOW": 0,
         }
         self._tracks = {}
+        self._telemetry_samples = []
 
     def add_frame(self, result, frame_number: int):
         """Add one processed frame to the mission report."""
@@ -88,6 +91,35 @@ class MissionReportBuilder:
 
             summary["latest_reasons"] = list(assessment.reasons)
 
+    def add_telemetry(self, snapshot):
+        """Add one validated telemetry snapshot to the mission report."""
+        if not isinstance(snapshot, TelemetrySnapshot):
+            raise TypeError("snapshot must be a TelemetrySnapshot")
+        self._telemetry_samples.append(snapshot.to_dict())
+
+    def load_telemetry_log(self, path):
+        """Load telemetry snapshots from a JSON Lines file."""
+        log_path = Path(path)
+        if not log_path.is_file():
+            raise FileNotFoundError(f"Telemetry log not found: {log_path}")
+
+        count = 0
+        with log_path.open("r", encoding="utf-8") as log_file:
+            for line_number, line in enumerate(log_file, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    snapshot = TelemetrySnapshot.from_dict(data)
+                except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid telemetry record at line {line_number}: {exc}"
+                    ) from exc
+                self.add_telemetry(snapshot)
+                count += 1
+
+        return count
+
     def to_dict(self):
         """Return the report in JSON-compatible form."""
         return {
@@ -105,6 +137,13 @@ class MissionReportBuilder:
                 self._tracks.values(),
                 key=lambda item: item["track_id"],
             ),
+            "telemetry": {
+                "sample_count": len(self._telemetry_samples),
+                "latest": (
+                    self._telemetry_samples[-1]
+                    if self._telemetry_samples else None
+                ),
+            },
         }
 
     def save(self, path):

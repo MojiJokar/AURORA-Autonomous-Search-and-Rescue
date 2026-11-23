@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def make_handler(report_path: Path, video_path: Path):
+def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
     dashboard_path = PROJECT_ROOT / "dashboard" / "index.html"
 
     class DashboardHandler(BaseHTTPRequestHandler):
@@ -58,6 +58,25 @@ def make_handler(report_path: Path, video_path: Path):
                 self.send_bytes(content, "application/json")
                 return
 
+            if route == "/api/telemetry":
+                if telemetry_path is None or not telemetry_path.is_file():
+                    content = json.dumps({
+                        "available": False,
+                        "message": "No telemetry snapshot is available",
+                    }).encode("utf-8")
+                    self.send_bytes(content, "application/json")
+                    return
+
+                try:
+                    content = telemetry_path.read_bytes()
+                    json.loads(content)
+                except (OSError, json.JSONDecodeError):
+                    self.send_error(500, "Telemetry snapshot is not valid JSON")
+                    return
+
+                self.send_bytes(content, "application/json")
+                return
+
             if route == "/video":
                 if not video_path.is_file():
                     self.send_error(404, "Annotated video not found")
@@ -87,6 +106,11 @@ def main():
         default="datasets/aurora_pipeline_output.mp4",
         help="Annotated MP4 video",
     )
+    parser.add_argument(
+        "--telemetry",
+        default="datasets/telemetry_latest.json",
+        help="Latest telemetry snapshot JSON",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
@@ -96,10 +120,11 @@ def main():
 
     report_path = Path(args.report).resolve()
     video_path = Path(args.video).resolve()
+    telemetry_path = Path(args.telemetry).resolve()
 
     server = ThreadingHTTPServer(
         (args.host, args.port),
-        make_handler(report_path, video_path),
+        make_handler(report_path, video_path, telemetry_path),
     )
 
     print("AURORA Mission Dashboard")
