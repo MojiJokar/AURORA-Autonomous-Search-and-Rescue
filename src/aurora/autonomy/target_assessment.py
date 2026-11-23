@@ -26,6 +26,12 @@ def _clamp(value: float) -> float:
 
 def _box_coordinates(box):
     """Read common bounding-box coordinate formats."""
+    if all(hasattr(box, name) for name in ("x_min", "y_min", "x_max", "y_max")):
+        return (
+            float(box.x_min), float(box.y_min),
+            float(box.x_max), float(box.y_max),
+        )
+
     if all(hasattr(box, name) for name in ("x1", "y1", "x2", "y2")):
         return float(box.x1), float(box.y1), float(box.x2), float(box.y2)
 

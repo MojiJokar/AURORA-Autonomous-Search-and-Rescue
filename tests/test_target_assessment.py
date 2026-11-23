@@ -117,3 +117,31 @@ def test_assessment_contains_explanations():
     result = assess_track(make_track(), 640, 480)
 
     assert len(result.reasons) >= 3
+
+
+def test_assessment_accepts_real_aurora_track():
+    from aurora.perception.detection.detection_result import BoundingBox
+    from aurora.perception.tracking.tracker import Track
+
+    track = Track(
+        track_id=7,
+        class_name="person",
+        confidence=0.90,
+        bounding_box=BoundingBox(
+            x_min=100,
+            y_min=50,
+            x_max=300,
+            y_max=350,
+        ),
+        age=10,
+        hits=10,
+        missed_frames=0,
+        observed=True,
+    )
+
+    result = assess_track(track, 640, 480)
+
+    assert result.track_id == 7
+    assert result.status == "PERSON_CANDIDATE"
+    assert result.visibility > 0
+    assert result.priority == "HIGH"
