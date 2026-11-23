@@ -77,6 +77,11 @@ footer { color:#8190a5; font-size:12px; margin-top:22px; }
     <div class="card"><div class="label">FLIGHT MODE</div><div class="value" id="flightMode">—</div></div>
     <div class="card"><div class="label">ARMED</div><div class="value" id="armed">—</div></div>
   </div>
+  <div class="sub">
+    Connection health:
+    <strong id="telemetryHealth">WAITING</strong>
+    <span id="telemetryAge"></span>
+  </div>
   <div class="sub" id="telemetryStatus">Waiting for telemetry...</div>
 </section>
 
@@ -115,9 +120,21 @@ async function refresh() {
     if (telemetryResponse.ok) {
       const telemetry = await telemetryResponse.json();
       if (telemetry.available === false) {
+        document.getElementById("telemetryHealth").textContent =
+          "DISCONNECTED";
+        document.getElementById("telemetryAge").textContent = "";
         document.getElementById("telemetryStatus").textContent =
           "No telemetry snapshot available.";
       } else {
+        const health = telemetry.health || {};
+        document.getElementById("telemetryHealth").textContent =
+          health.status || "RECORDED";
+
+        document.getElementById("telemetryAge").textContent =
+          health.age_seconds === undefined
+            ? ""
+            : " | Last update: " + health.age_seconds + " seconds ago";
+
         const setValue = (id, value) => {
           document.getElementById(id).textContent =
             value === null || value === undefined ? "—" : value;

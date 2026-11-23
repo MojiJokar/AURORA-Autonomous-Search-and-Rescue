@@ -170,10 +170,46 @@ def make_handler(report_path: Path, video_path: Path, telemetry_path=None):
                     return
 
                 try:
+                    stat = telemetry_path.stat()
                     content = telemetry_path.read_bytes()
-                    json.loads(content)
-                except (OSError, json.JSONDecodeError):
-                    self.send_error(500, "Telemetry snapshot is not valid JSON")
+                    telemetry = json.loads(content)
+
+                    if not isinstance(telemetry, dict):
+                        raise ValueError("Telemetry JSON must be an object")
+
+                    from aurora.telemetry.health import (
+                        classify_telemetry_source,
+                    )
+                    from datetime import datetime, timezone
+                    import time
+
+                    age_seconds = max(0.0, time.time() - stat.st_mtime)
+                    source = telemetry.get("source", "unknown")
+
+                    health_status = classify_telemetry_source(
+                        source,
+                        age_seconds,
+                    )
+
+                    telemetry["health"] = {
+                        "status": health_status,
+                        "age_seconds": round(age_seconds, 2),
+                        "stale_after_seconds": 3.0,
+                        "disconnect_after_seconds": 10.0,
+                        "last_update": datetime.fromtimestamp(
+                            stat.st_mtime,
+                            timezone.utc,
+                        ).isoformat(),
+                        "is_live": health_status == "LIVE",
+                    }
+
+                    content = json.dumps(telemetry).encode("utf-8")
+
+                except (OSError, json.JSONDecodeError, ValueError):
+                    self.send_error(
+                        500,
+                        "Telemetry snapshot is not valid JSON",
+                    )
                     return
 
                 self.send_bytes(
