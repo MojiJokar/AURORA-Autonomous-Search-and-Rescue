@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AURORA Mission Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+body { margin:0; font-family:Arial,sans-serif; background:#101827; color:#eef2ff; }
+header { padding:14px 20px; background:#172338; }
+h1 { margin:0; font-size:21px; }
+#status { padding:10px 20px; font-size:13px; color:#cbd5e1; }
+#map { height:calc(100vh - 85px); width:100%; }
+.legend { background:white; color:#172338; padding:10px; line-height:1.7; }
+.dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:6px; }
+</style>
+</head>
+<body>
+<header><h1>AURORA 2.0 — Mission Map</h1></header>
+<div id="status">Loading mission locations...</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map("map").setView([49.8728, 8.6512], 17);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+const legend = L.control({position:"bottomright"});
+legend.onAdd = function() {
+  const div = L.DomUtil.create("div","legend");
+  div.innerHTML =
+    '<b>Map legend</b><br>' +
+    '<span class="dot" style="background:#2563eb"></span>UAV position<br>' +
+    '<span class="dot" style="background:#dc2626"></span>HIGH priority estimate<br>' +
+    '<span class="dot" style="background:#d97706"></span>MEDIUM priority estimate<br>' +
+    '<span class="dot" style="background:#16a34a"></span>LOW/other estimate';
+  return div;
+};
+legend.addTo(map);
+
+async function loadTargets() {
+  const status = document.getElementById("status");
+  try {
+    const response = await fetch("/api/targets", {cache:"no-store"});
+    if (!response.ok) throw new Error("Target GeoJSON is not available.");
+    const data = await response.json();
+
+    if (window.targetLayer) map.removeLayer(window.targetLayer);
+
+    window.targetLayer = L.geoJSON(data, {
+      pointToLayer: (feature, latlng) => {
+        const p = feature.properties || {};
+        const isUav = p.role === "UAV";
+        const color = isUav ? "#2563eb" :
+          p.priority === "HIGH" ? "#dc2626" :
+          p.priority === "MEDIUM" ? "#d97706" : "#16a34a";
+
+        return L.circleMarker(latlng, {
+          radius: isUav ? 9 : 7,
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.85
+        });
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.role === "UAV"
+          ? "UAV position"
+          : "Estimated target — Track " + p.track_id;
+        layer.bindPopup(
+          "<b>" + title + "</b><br>" +
+          "Priority: " + (p.priority || "—") + "<br>" +
+          "Confidence: " + (p.confidence ?? "—") + "<br>" +
+          "Estimated uncertainty: " +
+          (p.estimated_uncertainty_m ?? "—") + " m<br>" +
+          "Method: " + (p.geolocation_method || "GPS telemetry")
+        );
+      }
+    }).addTo(map);
+
+    const points = window.targetLayer.getLayers();
+    if (points.length) {
+      map.fitBounds(window.targetLayer.getBounds().pad(0.25));
+    }
+    status.textContent =
+      "Loaded " + data.features.length +
+      " map features. Target coordinates are estimates, not verified locations.";
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+loadTargets();
+setInterval(loadTargets, 5000);
+</script>
+</body>
+</html>
