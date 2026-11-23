@@ -33,3 +33,8 @@ datasets/*
 # Build artifacts
 build/
 dist/
+/models/*.onnx
+/datasets/*.jpg
+/datasets/*.jpeg
+/datasets/*.png
+/datasets/*.mp4
