@@ -83,3 +83,45 @@ PYTHONPATH=src python scripts/detect_person.py --model models/yolov8n.onnx --ima
 
 Verification:
 The detector passed automated tests and detected three people in a recorded sample photograph. This milestone does not yet implement live UAV operation, object tracking, autonomous navigation, or complete search-and-rescue mission execution.
+
+## Milestone 8 — Multi-Object Tracking
+
+AURORA includes a lightweight multi-object tracker based on
+Intersection over Union (IoU) matching.
+
+### Features
+
+- Matches detections across consecutive frames.
+- Assigns persistent track IDs.
+- Uses greedy highest-IoU matching.
+- Keeps tracks temporarily when detections are missed.
+- Expires tracks after a configurable number of missed frames.
+- Separates objects with different class names.
+- Resets track state when required.
+- Uses CPU-friendly Python operations without another AI model.
+
+### Run tracking on a recorded video
+
+Place a recorded video at `datasets/sample.mp4`.
+
+Run:
+
+`PYTHONPATH=src python scripts/track_people.py --model models/yolov8n.onnx --video datasets/sample.mp4 --output datasets/tracked_output.mp4`
+
+Optional tracking parameters:
+
+- `--confidence`: detector confidence threshold.
+- `--min-iou`: minimum IoU for matching.
+- `--max-missed`: number of missed frames allowed before a track expires.
+
+The annotated output video contains bounding boxes, person IDs,
+and detection confidence values.
+
+### Limitations
+
+This is a basic IoU tracker. It does not recognize a person's
+identity, predict complex motion, or guarantee stable IDs when
+people cross, overlap, or move substantially between frames.
+
+This milestone does not implement autonomous flight,
+obstacle avoidance, or search-and-rescue mission execution.
