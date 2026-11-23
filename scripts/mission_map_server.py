@@ -19,28 +19,36 @@ def main():
     geojson_path = (ROOT / args.geojson).resolve()
 
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
+        def _serve(self, head_only=False):
             if self.path == "/":
-                path = ROOT / "dashboard" / "map.html"
+                file_path = ROOT / "dashboard" / "map.html"
                 content_type = "text/html; charset=utf-8"
             elif self.path == "/api/targets":
-                path = geojson_path
+                file_path = geojson_path
                 content_type = "application/geo+json"
             else:
                 self.send_error(404)
                 return
 
-            if not path.is_file():
+            if not file_path.is_file():
                 self.send_error(404, "Map data not found. Generate GeoJSON first.")
                 return
 
-            content = path.read_bytes()
+            content = file_path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            self.wfile.write(content)
+
+            if not head_only:
+                self.wfile.write(content)
+
+        def do_GET(self):
+            self._serve(head_only=False)
+
+        def do_HEAD(self):
+            self._serve(head_only=True)
 
         def log_message(self, fmt, *args):
             print("Mission map:", fmt % args)
