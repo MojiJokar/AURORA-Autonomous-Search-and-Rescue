@@ -152,3 +152,46 @@ whether a person is injured, unconscious, or in need of rescue.
 The current scoring system is a simple baseline and requires validation
 with representative search-and-rescue footage before operational use.
 
+
+
+## Milestone 11 — Mission Monitoring and Operator Dashboard
+
+AURORA now includes a lightweight local dashboard for reviewing recorded
+search-and-rescue perception runs.
+
+### Dashboard features
+
+- Mission frame and detection totals.
+- Unique person tracking ID count.
+- HIGH, MEDIUM, and LOW visual-priority track-frame counts.
+- Per-track first and last observed frame.
+- Per-track observation count, maximum confidence, and maximum score.
+- Annotated MP4 playback in a local browser.
+- JSON mission report for later review.
+
+### Generate a mission report
+
+Run the integrated perception pipeline:
+
+`PYTHONPATH=src python scripts/run_perception_pipeline.py --model models/yolov8n.onnx --video datasets/sample.mp4 --output datasets/aurora_pipeline_output.mp4`
+
+The command also generates:
+
+`datasets/aurora_pipeline_output.json`
+
+### Start the local dashboard
+
+`python scripts/mission_dashboard.py`
+
+Open `http://127.0.0.1:8765` in a browser on the same computer.
+
+Stop the dashboard with Ctrl+C in its terminal.
+
+### Limitations
+
+This dashboard displays reports and video from recorded missions. It does
+not provide live camera streaming, UAV telemetry, flight-controller
+commands, autonomous navigation, or validated rescue decisions.
+
+Priority scores are experimental visual indicators for operator attention.
+They are not medical assessments or proof that a person needs rescue.

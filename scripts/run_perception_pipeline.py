@@ -9,6 +9,7 @@ from aurora.autonomy.perception_pipeline import PerceptionPipeline
 from aurora.perception.camera_input import iter_video_frames
 from aurora.perception.detection.yolo_detector import YOLOPersonDetector
 from aurora.perception.tracking import IoUTracker
+from aurora.operator.mission_report import MissionReportBuilder
 
 
 def parse_args():
@@ -20,6 +21,11 @@ def parse_args():
     )
 
     parser.add_argument("--model", required=True, help="YOLO ONNX model")
+    parser.add_argument(
+        "--report",
+        default=None,
+        help="JSON mission report path (defaults beside output video)",
+    )
     parser.add_argument("--video", required=True, help="Input video")
     parser.add_argument(
         "--output",
@@ -95,6 +101,10 @@ def main():
     )
 
     pipeline = PerceptionPipeline(detector, tracker)
+    report_builder = MissionReportBuilder(
+        source_video=str(video_path),
+        output_video=str(output_path),
+    )
 
     writer = None
     frame_count = 0
@@ -131,6 +141,7 @@ def main():
             writer.write(result.image)
 
             frame_count += 1
+            report_builder.add_frame(result, frame_count)
             detection_count += len(result.detections)
 
             for track in result.tracks:
@@ -177,7 +188,14 @@ def main():
     print(f"HIGH priority track-frames: {priority_frame_counts['HIGH']}")
     print(f"MEDIUM priority track-frames: {priority_frame_counts['MEDIUM']}")
     print(f"LOW priority track-frames: {priority_frame_counts['LOW']}")
+    report_path = (
+        Path(args.report) if args.report else output_path.with_suffix(".json")
+    )
+    if report_path.resolve() == video_path.resolve():
+        raise ValueError("Report path must not overwrite the input video")
+    report_builder.save(report_path)
     print(f"Output video: {output_path}")
+    print(f"Mission report: {report_path}")
 
 
 if __name__ == "__main__":

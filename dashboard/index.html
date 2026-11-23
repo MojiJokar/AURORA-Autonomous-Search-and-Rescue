@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AURORA Mission Monitor</title>
+<style>
+:root { font-family: Arial, sans-serif; color: #e8edf5; background: #101722; }
+body { margin: 0; padding: 24px; }
+header { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+h1 { margin:0; letter-spacing:2px; }
+.sub { color:#9eacc0; margin-top:8px; }
+.badge { border:1px solid #3c526d; padding:8px 12px; border-radius:20px; color:#a9d7ff; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin:24px 0; }
+.card, section { background:#1a2635; border:1px solid #2b3b50; border-radius:12px; padding:18px; }
+.label { color:#9eacc0; font-size:13px; }
+.value { font-size:30px; font-weight:bold; margin-top:8px; }
+.high { color:#ff7777; } .medium { color:#ffd166; } .low { color:#79d99a; }
+.columns { display:grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap:16px; }
+video { width:100%; border-radius:8px; background:#080c12; margin-top:12px; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th,td { padding:10px 8px; text-align:left; border-bottom:1px solid #344357; font-size:14px; }
+th { color:#9eacc0; }
+.reason { color:#9eacc0; font-size:12px; }
+#message { color:#ffd166; margin-top:16px; }
+footer { color:#8190a5; font-size:12px; margin-top:22px; }
+@media(max-width:800px) { .columns { grid-template-columns:1fr; } body { padding:14px; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>AURORA <span style="color:#65b8ff">MISSION MONITOR</span></h1>
+    <div class="sub">Recorded-mission monitoring • Local dashboard</div>
+  </div>
+  <div class="badge" id="connection">Connecting...</div>
+</header>
+
+<div class="grid">
+  <div class="card"><div class="label">FRAMES PROCESSED</div><div class="value" id="frames">—</div></div>
+  <div class="card"><div class="label">PERSON DETECTIONS</div><div class="value" id="detections">—</div></div>
+  <div class="card"><div class="label">UNIQUE TRACK IDs</div><div class="value" id="tracks">—</div></div>
+  <div class="card"><div class="label">OBSERVED TRACK-FRAMES</div><div class="value" id="observations">—</div></div>
+  <div class="card"><div class="label">HIGH PRIORITY</div><div class="value high" id="high">—</div></div>
+  <div class="card"><div class="label">MEDIUM PRIORITY</div><div class="value medium" id="medium">—</div></div>
+  <div class="card"><div class="label">LOW PRIORITY</div><div class="value low" id="low">—</div></div>
+</div>
+
+<div class="columns">
+  <section>
+    <h2>Annotated Mission Video</h2>
+    <div class="sub">Detection boxes, tracking IDs and visual priorities</div>
+    <video controls preload="metadata" src="/video">
+      Your browser does not support video playback.
+    </video>
+  </section>
+
+  <section>
+    <h2>Mission Information</h2>
+    <p class="label">Input video</p><div id="source">—</div>
+    <p class="label">Output video</p><div id="output">—</div>
+    <p class="label">Report version</p><div id="version">—</div>
+    <p id="message">Waiting for mission report...</p>
+  </section>
+</div>
+
+<section style="margin-top:16px">
+  <h2>Tracked Person Candidates</h2>
+  <div class="sub">Priority is a visual attention score, not a medical or rescue diagnosis.</div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>Track ID</th><th>First frame</th><th>Last frame</th>
+        <th>Observed frames</th><th>Max confidence</th><th>Max score</th><th>Priority</th>
+      </tr></thead>
+      <tbody id="trackRows"><tr><td colspan="7">No report loaded.</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  AURORA is a research prototype. This dashboard displays recorded-video results;
+  it does not provide live UAV telemetry, flight control, or validated rescue decisions.
+  Data refreshes every 5 seconds.
+</footer>
+
+<script>
+function safe(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+async function refresh() {
+  try {
+    const response = await fetch("/api/report", {cache:"no-store"});
+    if (!response.ok) throw new Error("Mission report not found. Run the perception pipeline first.");
+    const data = await response.json();
+    document.getElementById("connection").textContent = "REPORT LOADED";
+    document.getElementById("frames").textContent = data.frames_processed;
+    document.getElementById("detections").textContent = data.person_detections;
+    document.getElementById("tracks").textContent = data.unique_track_ids;
+    document.getElementById("observations").textContent = data.observed_track_frame_assessments;
+    document.getElementById("high").textContent = data.priority_track_frames.HIGH;
+    document.getElementById("medium").textContent = data.priority_track_frames.MEDIUM;
+    document.getElementById("low").textContent = data.priority_track_frames.LOW;
+    document.getElementById("source").textContent = data.source_video;
+    document.getElementById("output").textContent = data.output_video;
+    document.getElementById("version").textContent = data.schema_version;
+    document.getElementById("message").textContent = "Mission report loaded successfully.";
+
+    const rows = data.tracks.map(t => `
+      <tr>
+        <td>${safe(t.track_id)}</td>
+        <td>${safe(t.first_seen_frame)}</td>
+        <td>${safe(t.last_seen_frame)}</td>
+        <td>${safe(t.observed_frames)}</td>
+        <td>${Number(t.max_confidence).toFixed(2)}</td>
+        <td>${Number(t.max_score).toFixed(2)}</td>
+        <td class="${safe(String(t.highest_priority).toLowerCase())}">
+          ${safe(t.highest_priority)}
+        </td>
+      </tr>`).join("");
+    document.getElementById("trackRows").innerHTML =
+      rows || '<tr><td colspan="7">No person candidates in this report.</td></tr>';
+  } catch (error) {
+    document.getElementById("connection").textContent = "WAITING FOR REPORT";
+    document.getElementById("message").textContent = error.message;
+  }
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
